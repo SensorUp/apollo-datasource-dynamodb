@@ -1,11 +1,10 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource';
-import { AWSError, DynamoDB } from 'aws-sdk';
+import { DynamoDB } from 'aws-sdk';
 import { ClientConfiguration } from 'aws-sdk/clients/dynamodb';
 
 import { DynamoDBCache, DynamoDBCacheImpl, CACHE_PREFIX_KEY } from './DynamoDBCache';
 import { buildItemsCacheMap, buildCacheKey, buildKey } from './utils';
-import { CacheKeyItemMap } from './types';
-import { PromiseResult } from 'aws-sdk/lib/request';
+import { CacheKeyItemMap, ItemsDetails } from './types';
 
 /**
  * Data Source to interact with DynamoDB.
@@ -18,8 +17,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   dynamodbCache!: DynamoDBCache<ITEM>;
   context!: TContext;
 
-  scanOutput: PromiseResult<DynamoDB.DocumentClient.ScanOutput, AWSError>;
-  queryOutput: PromiseResult<DynamoDB.DocumentClient.QueryOutput, AWSError>;
+  itemsDetails: ItemsDetails;
 
   /**
    * Create a `DynamoDBDataSource` instance with the supplied params
@@ -71,7 +69,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   async query(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ITEM[]> {
     const output = await this.dynamoDbDocClient.query(queryInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
-    this.queryOutput = output;
+    this.itemsDetails = output as ItemsDetails;
 
     // store the items in the cache
     if (items.length && ttl) {
@@ -96,7 +94,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   async scan(scanInput: DynamoDB.DocumentClient.ScanInput, ttl?: number): Promise<ITEM[]> {
     const output = await this.dynamoDbDocClient.scan(scanInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
-    this.scanOutput = output;
+    this.itemsDetails = output as ItemsDetails;
 
     // store the items in the cache
     if (items.length && ttl) {
