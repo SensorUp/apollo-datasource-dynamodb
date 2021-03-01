@@ -3,6 +3,10 @@ import { DynamoDB } from 'aws-sdk';
 export interface CacheKeyItemMap<T = unknown> {
   [key: string]: T;
 }
+export interface ItemsList<T = unknown> {
+  items: T[];
+  details: ItemsDetails;
+}
 
 export interface ItemsDetails {
   /**
