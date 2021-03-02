@@ -20,8 +20,15 @@
     "prepare": "npm run build",
     "prepublishOnly": "npm test && npm run lint",
     "preversion": "npm run lint",
-    "version": "npm run format && git add -A src",
-    "postversion": "git push && git push --tags"
+    "version": "npm run format:prettier && git add -A src",
+    "postversion": "git push && git push --tags",
+    "version:major": "yarn version --major --no-commit-hooks --no-git-tag-version && yarn version:tag",
+    "version:minor": "yarn version --minor --no-commit-hooks --no-git-tag-version && yarn version:tag",
+    "version:patch": "yarn version --patch --no-commit-hooks --no-git-tag-version && yarn version:tag",
+    "version:beta": "yarn version --prerelease --preid beta --no-commit-hooks --no-git-tag-version && yarn version:tag",
+    "version:hotfix": "yarn version --prerelease --preid hotfix --no-commit-hooks --no-git-tag-version && yarn version:tag",
+    "version:rc": "yarn version --prerelease --preid rc --no-commit-hooks --no-git-tag-version && yarn version:tag",
+    "version:tag": "git commit -a -m v$npm_package_version --no-verify && git tag -a v$npm_package_version -m v$npm_package_version && git push --follow-tags && echo \"Pushed version v$npm_package_version!\""
   },
   "homepage": "https://github.com/sensorup/apollo-datasource-dynamodb",
   "repository": {
