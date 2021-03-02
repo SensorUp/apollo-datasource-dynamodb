@@ -1,6 +1,6 @@
 {
   "name": "apollo-datasource-dynamodb",
-  "version": "1.1.0",
+  "version": "1.1.0a",
   "description": "Apollo DataSource framework for AWS DynamoDB",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -26,7 +26,7 @@
   "homepage": "https://github.com/cmwhited/apollo-datasource-dynamodb",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cmwhited/apollo-datasource-dynamodb.git"
+    "url": "git+https://github.com/SensorUp/apollo-datasource-dynamodb.git"
   },
   "bugs": {
     "url": "https://github.com/cmwhited/apollo-datasource-dynamodb"

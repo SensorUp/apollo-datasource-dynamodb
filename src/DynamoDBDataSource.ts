@@ -90,7 +90,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   async queryDetails(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ItemsList<ITEM>> {
     const output = await this.dynamoDbDocClient.query(queryInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
-    const details = output as ItemsDetails;
+    const details = { Count: output.Count, ScannedCount: output.ScannedCount, LastEvaluatedKey: output.LastEvaluatedKey } as ItemsDetails;
 
     await this.cacheItems(items, ttl);
 
@@ -114,7 +114,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   async scanDetails(scanInput: DynamoDB.DocumentClient.ScanInput, ttl?: number): Promise<ItemsList<ITEM>> {
     const output = await this.dynamoDbDocClient.scan(scanInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
-    const details = output as ItemsDetails;
+    const details = { Count: output.Count, ScannedCount: output.ScannedCount, LastEvaluatedKey: output.LastEvaluatedKey } as ItemsDetails;
 
     await this.cacheItems(items, ttl);
 
