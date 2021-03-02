@@ -29,7 +29,6 @@
     "url": "https://github.com/sensorup/apollo-datasource-dynamodb"
   },
   "license": "MIT",
-  "private": true,
   "keywords": [
     "apollo",
     "graphql",
