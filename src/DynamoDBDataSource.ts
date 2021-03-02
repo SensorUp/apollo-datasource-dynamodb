@@ -60,7 +60,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     return await this.dynamodbCache.getItem(getItemInput, ttl);
   }
 
-  async cacheItems(items: ITEM[], ttl?: number) {
+  async cacheItems(items: ITEM[], ttl?: number): Promise<void> {
     // store the items in the cache
     if (items.length && ttl) {
       const cacheKeyItemMap: CacheKeyItemMap<ITEM> = buildItemsCacheMap(
@@ -90,7 +90,11 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   async queryDetails(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ItemsList<ITEM>> {
     const output = await this.dynamoDbDocClient.query(queryInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
-    const details = { Count: output.Count, ScannedCount: output.ScannedCount, LastEvaluatedKey: output.LastEvaluatedKey } as ItemsDetails;
+    const details: ItemsDetails = {
+      Count: output.Count,
+      ScannedCount: output.ScannedCount,
+      LastEvaluatedKey: output.LastEvaluatedKey,
+    } as ItemsDetails;
 
     await this.cacheItems(items, ttl);
 
@@ -114,7 +118,11 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   async scanDetails(scanInput: DynamoDB.DocumentClient.ScanInput, ttl?: number): Promise<ItemsList<ITEM>> {
     const output = await this.dynamoDbDocClient.scan(scanInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
-    const details = { Count: output.Count, ScannedCount: output.ScannedCount, LastEvaluatedKey: output.LastEvaluatedKey } as ItemsDetails;
+    const details: ItemsDetails = {
+      Count: output.Count,
+      ScannedCount: output.ScannedCount,
+      LastEvaluatedKey: output.LastEvaluatedKey,
+    } as ItemsDetails;
 
     await this.cacheItems(items, ttl);
 

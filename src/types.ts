@@ -10,6 +10,10 @@ export interface ItemsList<T = unknown> {
 
 export interface ItemsDetails {
   /**
+   * The number of items in the response. If you used a QueryFilter in the request, then Count is the number of items returned after the filter was applied, and ScannedCount is the number of matching items before the filter was applied. If you did not use a filter in the request, then Count and ScannedCount are the same.
+   */
+  Count?: DynamoDB.DocumentClient.Integer;
+  /**
    * The number of items evaluated, before any ScanFilter is applied. A high ScannedCount value with few, or no, Count results indicates an inefficient Scan operation. For more information, see Count and ScannedCount in the Amazon DynamoDB Developer Guide. If you did not use a filter in the request, then ScannedCount is the same as Count.
    */
   ScannedCount?: DynamoDB.DocumentClient.Integer;
