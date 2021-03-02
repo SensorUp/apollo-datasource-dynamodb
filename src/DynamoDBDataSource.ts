@@ -4,7 +4,7 @@ import { ClientConfiguration } from 'aws-sdk/clients/dynamodb';
 
 import { DynamoDBCache, DynamoDBCacheImpl, CACHE_PREFIX_KEY } from './DynamoDBCache';
 import { buildItemsCacheMap, buildCacheKey, buildKey } from './utils';
-import { CacheKeyItemMap } from './types';
+import { CacheKeyItemMap, ItemsDetails, ItemsList } from './types';
 
 /**
  * Data Source to interact with DynamoDB.
@@ -16,6 +16,8 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   readonly tableKeySchema!: DynamoDB.DocumentClient.KeySchema;
   dynamodbCache!: DynamoDBCache<ITEM>;
   context!: TContext;
+
+  itemsDetails: ItemsDetails;
 
   /**
    * Create a `DynamoDBDataSource` instance with the supplied params
@@ -58,16 +60,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     return await this.dynamodbCache.getItem(getItemInput, ttl);
   }
 
-  /**
-   * Query for a list of records by the given query input.
-   * If the ttl has a value, and items are returned, store the items in the cache
-   * @param queryInput the defined query that tells the document client which records to retrieve from the table
-   * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
-   */
-  async query(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ITEM[]> {
-    const output = await this.dynamoDbDocClient.query(queryInput).promise();
-    const items: ITEM[] = output.Items as ITEM[];
-
+  async cacheItems(items: ITEM[], ttl?: number): Promise<void> {
     // store the items in the cache
     if (items.length && ttl) {
       const cacheKeyItemMap: CacheKeyItemMap<ITEM> = buildItemsCacheMap(
@@ -78,8 +71,34 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
       );
       await this.dynamodbCache.setItemsInCache(cacheKeyItemMap, ttl);
     }
+  }
+
+  /**
+   * Query for a list of records by the given query input.
+   * If the ttl has a value, and items are returned, store the items in the cache
+   * @param queryInput the defined query that tells the document client which records to retrieve from the table
+   * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
+   */
+  async query(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ITEM[]> {
+    const output = await this.dynamoDbDocClient.query(queryInput).promise();
+    const items: ITEM[] = output.Items as ITEM[];
+
+    await this.cacheItems(items, ttl);
 
     return items;
+  }
+  async queryDetails(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ItemsList<ITEM>> {
+    const output = await this.dynamoDbDocClient.query(queryInput).promise();
+    const items: ITEM[] = output.Items as ITEM[];
+    const details: ItemsDetails = {
+      Count: output.Count,
+      ScannedCount: output.ScannedCount,
+      LastEvaluatedKey: output.LastEvaluatedKey,
+    } as ItemsDetails;
+
+    await this.cacheItems(items, ttl);
+
+    return { items, details };
   }
 
   /**
@@ -92,18 +111,22 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     const output = await this.dynamoDbDocClient.scan(scanInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
 
-    // store the items in the cache
-    if (items.length && ttl) {
-      const cacheKeyItemMap: CacheKeyItemMap<ITEM> = buildItemsCacheMap(
-        CACHE_PREFIX_KEY,
-        this.tableName,
-        this.tableKeySchema,
-        items
-      );
-      await this.dynamodbCache.setItemsInCache(cacheKeyItemMap, ttl);
-    }
+    await this.cacheItems(items, ttl);
 
     return items;
+  }
+  async scanDetails(scanInput: DynamoDB.DocumentClient.ScanInput, ttl?: number): Promise<ItemsList<ITEM>> {
+    const output = await this.dynamoDbDocClient.scan(scanInput).promise();
+    const items: ITEM[] = output.Items as ITEM[];
+    const details: ItemsDetails = {
+      Count: output.Count,
+      ScannedCount: output.ScannedCount,
+      LastEvaluatedKey: output.LastEvaluatedKey,
+    } as ItemsDetails;
+
+    await this.cacheItems(items, ttl);
+
+    return { items, details };
   }
 
   /**

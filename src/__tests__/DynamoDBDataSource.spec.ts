@@ -6,7 +6,7 @@ import { ClientConfiguration } from 'aws-sdk/clients/dynamodb';
 import { DynamoDBDataSource } from '../DynamoDBDataSource';
 import { CACHE_PREFIX_KEY } from '../DynamoDBCache';
 import { buildItemsCacheMap } from '../utils';
-import { CacheKeyItemMap } from '../types';
+import { CacheKeyItemMap, ItemsList } from '../types';
 
 const { MOCK_DYNAMODB_ENDPOINT } = process.env;
 
@@ -173,6 +173,22 @@ describe('DynamoDBDataSource', () => {
     expect(actual).toEqual([]);
     expect(dynamodbCacheSetItemsInCacheMock).not.toBeCalled();
   });
+  it('queryDetails should return an empty list. setItemsInCache should not be invoked', async () => {
+    const queryInput: DynamoDB.DocumentClient.QueryInput = {
+      TableName: testHashOnly.tableName,
+      ConsistentRead: true,
+      KeyConditionExpression: 'id = :id',
+      ExpressionAttributeValues: {
+        ':id': 'testId',
+      },
+    };
+    const ttl = 30;
+
+    const actual: ItemsList<TestHashOnlyItem> = await testHashOnly.queryDetails(queryInput, ttl);
+
+    expect(actual.items).toEqual([]);
+    expect(dynamodbCacheSetItemsInCacheMock).not.toBeCalled();
+  });
 
   it('query should return a list of TestHashOnlyItem records but not add items to cache because of no ttl', async () => {
     const queryInput: DynamoDB.DocumentClient.QueryInput = {
@@ -235,6 +251,18 @@ describe('DynamoDBDataSource', () => {
     const actual: TestHashOnlyItem[] = await testHashOnly.scan(scanInput, ttl);
 
     expect(actual).toEqual([]);
+    expect(dynamodbCacheSetItemsInCacheMock).not.toBeCalled();
+  });
+  it('scanDetails should return an empty list. setItemsInCache should not be invoked', async () => {
+    const scanInput: DynamoDB.DocumentClient.ScanInput = {
+      TableName: testHashOnly.tableName,
+      ConsistentRead: true,
+    };
+    const ttl = 30;
+
+    const actual: ItemsList<TestHashOnlyItem> = await testHashOnly.scanDetails(scanInput, ttl);
+
+    expect(actual.items).toEqual([]);
     expect(dynamodbCacheSetItemsInCacheMock).not.toBeCalled();
   });
 
