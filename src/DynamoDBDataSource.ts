@@ -160,7 +160,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     updateExpression: DynamoDB.DocumentClient.UpdateExpression,
     expressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap,
     expressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap,
-    ttl?: number,
+    ttl?: number
   ): Promise<ITEM> {
     const updateItemInput: DynamoDB.DocumentClient.UpdateItemInput = {
       TableName: this.tableName,
