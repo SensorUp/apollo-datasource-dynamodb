@@ -161,7 +161,33 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     expressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap,
     expressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap,
     ttl?: number,
-    conditionExpression?: DynamoDB.DocumentClient.ConditionExpression
+  ): Promise<ITEM> {
+    const updateItemInput: DynamoDB.DocumentClient.UpdateItemInput = {
+      TableName: this.tableName,
+      Key: key,
+      ReturnValues: 'ALL_NEW',
+      UpdateExpression: updateExpression,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+    };
+    const output = await this.dynamoDbDocClient.update(updateItemInput).promise();
+    const updated: ITEM = output.Attributes as ITEM;
+
+    if (updated && ttl) {
+      const cacheKey: string = buildCacheKey(CACHE_PREFIX_KEY, this.tableName, key);
+      await this.dynamodbCache.setInCache(cacheKey, updated, ttl);
+    }
+
+    return updated;
+  }
+
+  async updateConditional(
+    key: DynamoDB.DocumentClient.Key,
+    updateExpression: DynamoDB.DocumentClient.UpdateExpression,
+    conditionExpression: DynamoDB.DocumentClient.ConditionExpression,
+    expressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap,
+    expressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap,
+    ttl?: number
   ): Promise<ITEM> {
     const updateItemInput: DynamoDB.DocumentClient.UpdateItemInput = {
       TableName: this.tableName,
