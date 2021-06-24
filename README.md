@@ -252,6 +252,32 @@ const ttl = 30 * 60; // 30minutes
 const items: TestHashOnlyItem[] = await this.query(queryInput, ttl);
 ```
 
+### queryDetails
+
+`this.queryDetails(queryInput, 180)`
+
+Returns all records from the table found by the query, as well as details about the query. If the `ttl` is provided, it adds all of the items to the cache.
+
+[DynamoDB.DocumentClient.query](https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/DynamoDB/DocumentClient.html#query-property)
+
+#### queryDetails Example
+
+```ts
+const queryInput: DynamoDB.DocumentClient.QueryInput = {
+  TableName: 'test_hash_only',
+  ConsistentRead: true,
+  KeyConditionExpression: 'id = :id',
+  ExpressionAttributeValues: {
+    ':id': 'testId',
+  },
+  Limit: 2,
+  ExclusiveStartKey: 'test5',
+};
+const ttl = 30 * 60; // 30minutes
+
+const { items: TestHashOnlyItem[], details: TestHashOnlyItem[] } = await this.queryDetails(queryInput, ttl);
+```
+
 ### scan
 
 `this.scan(scanInput, 180)`

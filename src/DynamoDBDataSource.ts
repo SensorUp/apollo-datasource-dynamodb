@@ -87,6 +87,13 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
 
     return items;
   }
+
+  /**
+   * Query for a list of records by the given query input.
+   * If the ttl has a value, and items are returned, store the items in the cache
+   * @param queryInput the defined query that tells the document client which records to retrieve from the table
+   * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
+   */
   async queryDetails(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ItemsList<ITEM>> {
     const output = await this.dynamoDbDocClient.query(queryInput).promise();
     const items: ITEM[] = output.Items as ITEM[];
