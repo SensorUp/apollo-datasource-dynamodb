@@ -54,7 +54,7 @@
     "apollo-datasource": "^0.7.0",
     "apollo-server-caching": "^0.5.1",
     "apollo-server-errors": "^2.4.0",
-    "aws-sdk": "^2.642.0",
+    "aws-sdk": "^2.814.0",
     "dataloader": "^2.0.0",
     "graphql": "^14.6.0"
   },
