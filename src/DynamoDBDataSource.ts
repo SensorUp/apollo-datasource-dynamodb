@@ -144,12 +144,12 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   async put(
     item: ITEM,
     ttl?: number,
-    ConditionExpression?: DynamoDB.DocumentClient.ConditionExpression
+    conditionExpression?: DynamoDB.DocumentClient.ConditionExpression
   ): Promise<ITEM> {
     const putItemInput: DynamoDB.DocumentClient.PutItemInput = {
       TableName: this.tableName,
       Item: item,
-      ...(ConditionExpression ? { ConditionExpression } : {}),
+      ...(conditionExpression ? { ConditionExpression: conditionExpression } : {}),
     };
     await this.dynamoDbDocClient.put(putItemInput).promise();
 
@@ -172,7 +172,8 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     updateExpression: DynamoDB.DocumentClient.UpdateExpression,
     expressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap,
     expressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap,
-    ttl?: number
+    ttl?: number,
+    conditionExpression?: DynamoDB.DocumentClient.ConditionExpression
   ): Promise<ITEM> {
     const updateItemInput: DynamoDB.DocumentClient.UpdateItemInput = {
       TableName: this.tableName,
@@ -181,6 +182,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
       UpdateExpression: updateExpression,
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
+      ...(conditionExpression ? { ConditionExpression: conditionExpression } : {}),
     };
     const output = await this.dynamoDbDocClient.update(updateItemInput).promise();
     const updated: ITEM = output.Attributes as ITEM;
