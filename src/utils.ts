@@ -77,7 +77,7 @@ export function buildItemsCacheMap<T = unknown>(
   keySchema: DynamoDB.DocumentClient.KeySchema,
   items: T[]
 ): CacheKeyItemMap<T> {
-  return items.reduce((accum: {}, curr: T) => {
+  return items.reduce((accum: Record<string, T>, curr: T) => {
     const key: DynamoDB.DocumentClient.Key = buildKey(keySchema, curr);
     const cacheKey = buildCacheKey(cachePrefix, tableName, key);
     return {

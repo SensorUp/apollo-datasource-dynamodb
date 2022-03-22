@@ -20,7 +20,7 @@ class TestHashOnly extends DynamoDBDataSource<TestHashOnlyItem> {
     super(tableName, tableKeySchema, config);
   }
 
-  initialize(config: DataSourceConfig<{}>): void {
+  initialize(config: DataSourceConfig<Record<string, unknown>>): void {
     super.initialize(config);
   }
 }

@@ -16,7 +16,7 @@ class TestWithClient extends DynamoDBDataSource<TestItem> {
     super(tableName, tableKeySchema, null, client);
   }
 
-  initialize(config: DataSourceConfig<{}>): void {
+  initialize(config: DataSourceConfig<Record<string, unknown>>): void {
     super.initialize(config);
   }
 }
