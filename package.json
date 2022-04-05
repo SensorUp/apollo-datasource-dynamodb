@@ -54,7 +54,7 @@
     "apollo-datasource": "^0.7.0",
     "apollo-server-caching": "^0.5.1",
     "apollo-server-errors": "^2.4.0",
-    "aws-sdk": "^2.814.0",
+    "aws-sdk": "^2.1108.0",
     "dataloader": "^2.0.0",
     "graphql": "^14.6.0"
   },
@@ -89,7 +89,7 @@
     "ts-jest": "^26.4.4",
     "ts-loader": "^6.2.1",
     "typescript": "^3.8.3",
-    "webpack": "^4.42.0",
+    "webpack": "^4.46.0",
     "webpack-node-externals": "^1.7.2"
   },
   "directories": {
