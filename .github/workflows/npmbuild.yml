@@ -3,7 +3,7 @@ name: Npm Gpr Build
 on:
   push:
     branches:
-      - "SPR-[0-9]+-.*"
+      - "SPR-[0-9]+-*"
 
 jobs:
   build:
