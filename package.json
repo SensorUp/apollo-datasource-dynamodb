@@ -47,14 +47,14 @@
     "/lib"
   ],
   "engines": {
-    "node": ">=12"
+    "node": ">=14"
   },
   "dependencies": {
     "@babel/plugin-proposal-optional-chaining": "^7.16.7",
     "apollo-datasource": "^3.3.1",
     "apollo-server-caching": "^3.3.0",
     "apollo-server-errors": "^3.3.1",
-    "aws-sdk": "^2.1098.0",
+    "aws-sdk": "^2.1108.0",
     "dataloader": "^2.0.0",
     "graphql": "^16.3.0"
   },
