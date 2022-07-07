@@ -1,10 +1,12 @@
 import { ApolloError } from 'apollo-server-errors';
-import { DynamoDB } from 'aws-sdk';
+import { mockClient } from 'aws-sdk-client-mock';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, GetCommandInput } from '@aws-sdk/lib-dynamodb';
 
 import { DynamoDBCacheImpl, CACHE_PREFIX_KEY, TTL_SEC } from '../DynamoDBCache';
 import { buildCacheKey } from '../utils';
 
-const { MOCK_DYNAMODB_ENDPOINT } = process.env;
+const dynamodbMock = mockClient(DynamoDBDocumentClient);
 
 interface TestHashOnlyItem {
   id: string;
@@ -12,13 +14,11 @@ interface TestHashOnlyItem {
 }
 
 describe('DynamoDBCache', () => {
-  const docClient = new DynamoDB.DocumentClient({
-    region: 'local',
-    endpoint: MOCK_DYNAMODB_ENDPOINT,
-    sslEnabled: false,
-  });
+  const dynamoDbClient = new DynamoDBClient({});
+  const dynamoDbDocumentClient = DynamoDBDocumentClient.from(dynamoDbClient);
+
   describe('retrieveFromCache', () => {
-    const dynamodbCache = new DynamoDBCacheImpl(docClient);
+    const dynamodbCache = new DynamoDBCacheImpl(dynamoDbDocumentClient);
     const getFromCacheMock = jest.spyOn(dynamodbCache.keyValueCache, 'get');
 
     afterEach(() => {
@@ -68,7 +68,7 @@ describe('DynamoDBCache', () => {
   });
 
   describe('setInCache', () => {
-    const dynamodbCache = new DynamoDBCacheImpl(docClient);
+    const dynamodbCache = new DynamoDBCacheImpl(dynamoDbDocumentClient);
     const setInCacheMock = jest.spyOn(dynamodbCache.keyValueCache, 'set');
 
     afterEach(() => {
@@ -94,7 +94,7 @@ describe('DynamoDBCache', () => {
   });
 
   describe('setItemsInCache', () => {
-    const dynamodbCache = new DynamoDBCacheImpl(docClient);
+    const dynamodbCache = new DynamoDBCacheImpl(dynamoDbDocumentClient);
     const setInCacheMock = jest.spyOn(dynamodbCache, 'setInCache');
 
     afterEach(() => {
@@ -124,7 +124,7 @@ describe('DynamoDBCache', () => {
   });
 
   describe('getItem', () => {
-    const dynamodbCache = new DynamoDBCacheImpl<TestHashOnlyItem>(docClient);
+    const dynamodbCache = new DynamoDBCacheImpl<TestHashOnlyItem>(dynamoDbDocumentClient);
     const testHashOnlyTableName = 'test_hash_only';
     const testHashOnlyItem: TestHashOnlyItem = { id: 'testId', test: 'testing' };
     const retrieveFromCacheMock = jest.spyOn(dynamodbCache, 'retrieveFromCache');
@@ -140,14 +140,14 @@ describe('DynamoDBCache', () => {
     });
 
     it('should return the item retrieved from the cache', async () => {
-      const givenGetItemInput: DynamoDB.DocumentClient.GetItemInput = {
+      const givenGetItemInput: GetCommandInput = {
         TableName: testHashOnlyTableName,
         ConsistentRead: true,
         Key: { id: 'testId' },
       };
       const givenTtl = TTL_SEC;
       const expected = testHashOnlyItem;
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' });
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as any);
 
       retrieveFromCacheMock.mockResolvedValueOnce(expected);
 
@@ -159,48 +159,48 @@ describe('DynamoDBCache', () => {
     });
 
     it('should return the item retrieved from the DynamoDB table and set in the cache', async () => {
-      const givenGetItemInput: DynamoDB.DocumentClient.GetItemInput = {
+      const givenGetItemInput: GetCommandInput = {
         TableName: testHashOnlyTableName,
         ConsistentRead: true,
         Key: { id: 'testId' },
       };
       const givenTtl = TTL_SEC;
-      await dynamodbCache.docClient
-        .put({
-          TableName: testHashOnlyTableName,
-          Item: testHashOnlyItem,
-        })
-        .promise();
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' });
+
+      dynamodbMock.on(GetCommand, givenGetItemInput).resolves({ Item: testHashOnlyItem });
+      //    await dynamodbCache.docClient.send(
+      //      new PutCommand({
+      //        TableName: testHashOnlyTableName,
+      //        Item: testHashOnlyItem,
+      //      })
+      //    );
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as any);
 
       retrieveFromCacheMock.mockResolvedValueOnce(undefined);
       setInCacheMock.mockResolvedValueOnce();
 
-      const { Item } = await dynamodbCache.docClient.get(givenGetItemInput).promise();
       const actual: TestHashOnlyItem = await dynamodbCache.getItem(givenGetItemInput, givenTtl);
 
       expect(actual).toBeDefined();
-      expect(actual).toEqual(Item);
       expect(actual).toEqual(testHashOnlyItem);
       expect(retrieveFromCacheMock).toBeCalledWith(cacheKey);
       expect(setInCacheMock).toBeCalledWith(cacheKey, actual, givenTtl);
 
-      await dynamodbCache.docClient
-        .delete({
-          TableName: testHashOnlyTableName,
-          Key: { id: 'testId' },
-        })
-        .promise();
+      //    await dynamodbCache.docClient.send(
+      //      new DeleteCommand({
+      //        TableName: testHashOnlyTableName,
+      //        Key: { id: 'testId' },
+      //      })
+      //    );
     });
 
     it('should return an ApolloError if an error is thrown retrieving the record', async () => {
-      const givenGetItemInput: DynamoDB.DocumentClient.GetItemInput = {
+      const givenGetItemInput: GetCommandInput = {
         TableName: testHashOnlyTableName,
         ConsistentRead: true,
         Key: { id: 'testId' },
       };
       const givenTtl = TTL_SEC;
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' });
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as any);
       const error = new Error('Error setting item in cache');
 
       retrieveFromCacheMock.mockRejectedValueOnce(error);
@@ -213,13 +213,13 @@ describe('DynamoDBCache', () => {
     });
 
     it('should return an ApolloError if no record is found', async () => {
-      const givenGetItemInput: DynamoDB.DocumentClient.GetItemInput = {
+      const givenGetItemInput: GetCommandInput = {
         TableName: testHashOnlyTableName,
         ConsistentRead: true,
         Key: { id: 'does_not_exist' },
       };
       const givenTtl = TTL_SEC;
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'does_not_exist' });
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'does_not_exist' } as any);
 
       retrieveFromCacheMock.mockRejectedValueOnce(undefined);
 
@@ -232,7 +232,7 @@ describe('DynamoDBCache', () => {
   });
 
   describe('removeItemFromCache', () => {
-    const dynamodbCache = new DynamoDBCacheImpl<TestHashOnlyItem>(docClient);
+    const dynamodbCache = new DynamoDBCacheImpl<TestHashOnlyItem>(dynamoDbDocumentClient);
     const deleteFromCacheMock = jest.spyOn(dynamodbCache.keyValueCache, 'delete');
 
     afterEach(() => {
@@ -244,7 +244,7 @@ describe('DynamoDBCache', () => {
 
     it('should remove the item from the cache and return true', async () => {
       const givenTableName = 'test';
-      const givenKey: DynamoDB.DocumentClient.Key = { id: 'testId' };
+      const givenKey: GetCommandInput['Key'] = { id: 'testId' };
       const givenCacheKey = `${CACHE_PREFIX_KEY}test:id-testId`;
 
       deleteFromCacheMock.mockResolvedValueOnce(true);
@@ -257,7 +257,7 @@ describe('DynamoDBCache', () => {
 
     it('should throw an ApolloError if the dynamodbCache.keyValueCache.delete throws an error - with given error message', async () => {
       const givenTableName = 'test';
-      const givenKey: DynamoDB.DocumentClient.Key = { id: 'testId' };
+      const givenKey: GetCommandInput['Key'] = { id: 'testId' };
       const givenCacheKey = `${CACHE_PREFIX_KEY}test:id-testId`;
 
       deleteFromCacheMock.mockRejectedValueOnce(new Error('Error'));
@@ -270,7 +270,7 @@ describe('DynamoDBCache', () => {
 
     it('should throw an ApolloError if the dynamodbCache.keyValueCache.delete throws an error - with default error message', async () => {
       const givenTableName = 'test';
-      const givenKey: DynamoDB.DocumentClient.Key = { id: 'testId' };
+      const givenKey: GetCommandInput['Key'] = { id: 'testId' };
       const givenCacheKey = `${CACHE_PREFIX_KEY}test:id-testId`;
 
       deleteFromCacheMock.mockRejectedValueOnce(null);

@@ -1,9 +1,9 @@
 import { DataSourceConfig } from 'apollo-datasource';
-import { DynamoDB } from 'aws-sdk';
+
+import { DynamoDBClient, CreateTableCommandInput } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 import { DynamoDBDataSource } from '../DynamoDBDataSource';
-
-const { MOCK_DYNAMODB_ENDPOINT } = process.env;
 
 interface TestItem {
   id: string;
@@ -12,54 +12,51 @@ interface TestItem {
 }
 
 class TestWithClient extends DynamoDBDataSource<TestItem> {
-  constructor(tableName: string, tableKeySchema: DynamoDB.DocumentClient.KeySchema, client: DynamoDB.DocumentClient) {
+  constructor(tableName: string, tableKeySchema: CreateTableCommandInput['KeySchema'], client: DynamoDBDocumentClient) {
     super(tableName, tableKeySchema, null, client);
   }
 
-  initialize(config: DataSourceConfig<{}>): void {
+  initialize(config: DataSourceConfig<Record<string, never>>): void {
     super.initialize(config);
   }
 }
 
-const keySchema: DynamoDB.DocumentClient.KeySchema = [
+const keySchema: CreateTableCommandInput['KeySchema'] = [
   {
     AttributeName: 'id',
     KeyType: 'HASH',
   },
 ];
 
-const client: DynamoDB.DocumentClient = new DynamoDB.DocumentClient({
-  apiVersion: 'latest',
-  region: 'local',
-  endpoint: MOCK_DYNAMODB_ENDPOINT,
-  sslEnabled: false,
-});
+// const dynamodbMock = mockClient(DynamoDBClient)
+const dynamoDbClient = new DynamoDBClient({});
+const client = DynamoDBDocumentClient.from(dynamoDbClient);
 
 const testWithClient = new TestWithClient('test_with_client', keySchema, client);
 testWithClient.initialize({ context: {}, cache: null });
 
-const testItem: TestItem = {
-  id: 'testWithClientId',
-  item1: 'testing1',
-  item2: 'testing2',
-};
+// const testItem: TestItem = {
+// id: 'testWithClientId',
+// item1: 'testing1',
+// item2: 'testing2',
+// };
 
 beforeAll(async () => {
-  await testWithClient.dynamoDbDocClient
-    .put({
-      TableName: testWithClient.tableName,
-      Item: testItem,
-    })
-    .promise();
+  // await testWithClient.dynamoDbDocClient.send(
+  //  new PutCommand({
+  //    TableName: testWithClient.tableName,
+  //    Item: testItem,
+  //  })
+  // );
 });
 
 afterAll(async () => {
-  await testWithClient.dynamoDbDocClient
-    .delete({
-      TableName: testWithClient.tableName,
-      Key: { id: 'testWithClientId' },
-    })
-    .promise();
+  // await testWithClient.dynamoDbDocClient.send(
+  //  new DeleteCommand({
+  //    TableName: testWithClient.tableName,
+  //    Key: { id: 'testWithClientId' },
+  //  })
+  // );
 });
 
 describe('DynamoDBDataSource With Initialized Client', () => {

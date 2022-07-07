@@ -3,7 +3,6 @@ module.exports = {
   transform: {
     '^.+\\.ts?$': 'ts-jest',
   },
-  preset: 'jest-dynalite',
   testRegex: '/__tests__/.*\\.spec\\.ts$',
   testPathIgnorePatterns: ['/node_modules/', '/lib/'],
   collectCoverage: true,

@@ -1,19 +1,54 @@
 import { DataSource, DataSourceConfig } from 'apollo-datasource';
-import { DynamoDB } from 'aws-sdk';
-import { ClientConfiguration } from 'aws-sdk/clients/dynamodb';
+
+import { Agent } from 'https';
+import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
+import { captureAWSv3Client } from 'aws-xray-sdk-core';
+
+import {
+  DynamoDBClient,
+  DynamoDBClientConfig,
+  CreateTableCommandInput,
+  GetItemCommandInput,
+  PutItemCommandInput,
+  UpdateItemCommandInput,
+} from '@aws-sdk/client-dynamodb';
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  ScanCommand,
+  QueryCommand,
+  DeleteCommand,
+  UpdateCommand,
+  DeleteCommandInput,
+  GetCommandInput,
+  PutCommandInput,
+  QueryCommandInput,
+  ScanCommandInput,
+  UpdateCommandInput,
+} from '@aws-sdk/lib-dynamodb';
 
 import { DynamoDBCache, DynamoDBCacheImpl, CACHE_PREFIX_KEY } from './DynamoDBCache';
 import { buildItemsCacheMap, buildCacheKey, buildKey } from './utils';
 import { CacheKeyItemMap, ItemsDetails, ItemsList } from './types';
+
+const awsClientDefaultOptions = {
+  apiVersion: 'latest',
+  requestHandler: new NodeHttpHandler({
+    httpsAgent: new Agent({
+      keepAlive: true,
+      secureProtocol: 'TLSv1_2_method',
+    }),
+  }),
+};
 
 /**
  * Data Source to interact with DynamoDB.
  * @param ITEM the type of the item to retrieve from the DynamoDB table
  */
 export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> extends DataSource {
-  readonly dynamoDbDocClient: DynamoDB.DocumentClient;
+  readonly dynamoDbDocClient: DynamoDBDocumentClient;
   readonly tableName!: string;
-  readonly tableKeySchema!: DynamoDB.DocumentClient.KeySchema;
+  readonly tableKeySchema!: CreateTableCommandInput['KeySchema'];
   dynamodbCache!: DynamoDBCache<ITEM>;
   context!: TContext;
 
@@ -23,25 +58,24 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * Create a `DynamoDBDataSource` instance with the supplied params
    * @param tableName the name of the DynamoDB table the class will be interacting with
    * @param tableKeySchema the key structure schema of the table
-   * @param config an optional ClientConfiguration object to use in building the DynamoDB.DocumentClient
+   * @param config an optional DynamoDBClientConfig object to use in building the DynamoDB.DocumentClient
    * @param client an optional initialized DynamoDB.Document client instance to use to set the client in the class instance
    */
   constructor(
     tableName: string,
-    tableKeySchema: DynamoDB.DocumentClient.KeySchema,
-    config?: ClientConfiguration,
-    client?: DynamoDB.DocumentClient
+    tableKeySchema: CreateTableCommandInput['KeySchema'],
+    config?: DynamoDBClientConfig,
+    client?: DynamoDBDocumentClient
   ) {
     super();
     this.tableName = tableName;
     this.tableKeySchema = tableKeySchema;
-    this.dynamoDbDocClient =
-      client != null
-        ? client
-        : new DynamoDB.DocumentClient({
-            apiVersion: 'latest',
-            ...config,
-          });
+    if (client != null) {
+      this.dynamoDbDocClient = client;
+    } else {
+      const dynamoDbClient = captureAWSv3Client(new DynamoDBClient({ ...awsClientDefaultOptions, ...config }));
+      this.dynamoDbDocClient = DynamoDBDocumentClient.from(dynamoDbClient);
+    }
   }
 
   initialize({ context, cache }: DataSourceConfig<TContext>): void {
@@ -56,7 +90,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param getItemInput the input that provides information about which record to retrieve from the cache/dynamodb table
    * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
    */
-  async getItem(getItemInput: DynamoDB.DocumentClient.GetItemInput, ttl?: number): Promise<ITEM> {
+  async getItem(getItemInput: GetCommandInput, ttl?: number): Promise<ITEM> {
     return await this.dynamodbCache.getItem(getItemInput, ttl);
   }
 
@@ -79,8 +113,8 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param queryInput the defined query that tells the document client which records to retrieve from the table
    * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
    */
-  async query(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ITEM[]> {
-    const output = await this.dynamoDbDocClient.query(queryInput).promise();
+  async query(queryInput: QueryCommandInput, ttl?: number): Promise<ITEM[]> {
+    const output = await this.dynamoDbDocClient.send(new QueryCommand(queryInput));
     const items: ITEM[] = output.Items as ITEM[];
 
     await this.cacheItems(items, ttl);
@@ -94,8 +128,8 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param queryInput the defined query that tells the document client which records to retrieve from the table
    * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
    */
-  async queryDetails(queryInput: DynamoDB.DocumentClient.QueryInput, ttl?: number): Promise<ItemsList<ITEM>> {
-    const output = await this.dynamoDbDocClient.query(queryInput).promise();
+  async queryDetails(queryInput: QueryCommandInput, ttl?: number): Promise<ItemsList<ITEM>> {
+    const output = await this.dynamoDbDocClient.send(new QueryCommand(queryInput));
     const items: ITEM[] = output.Items as ITEM[];
     const details: ItemsDetails = {
       Count: output.Count,
@@ -114,16 +148,16 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param scanInput the scan input that tell the document client how to scan for records in the table
    * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
    */
-  async scan(scanInput: DynamoDB.DocumentClient.ScanInput, ttl?: number): Promise<ITEM[]> {
-    const output = await this.dynamoDbDocClient.scan(scanInput).promise();
+  async scan(scanInput: ScanCommandInput, ttl?: number): Promise<ITEM[]> {
+    const output = await this.dynamoDbDocClient.send(new ScanCommand(scanInput));
     const items: ITEM[] = output.Items as ITEM[];
 
     await this.cacheItems(items, ttl);
 
     return items;
   }
-  async scanDetails(scanInput: DynamoDB.DocumentClient.ScanInput, ttl?: number): Promise<ItemsList<ITEM>> {
-    const output = await this.dynamoDbDocClient.scan(scanInput).promise();
+  async scanDetails(scanInput: ScanCommandInput, ttl?: number): Promise<ItemsList<ITEM>> {
+    const output = await this.dynamoDbDocClient.send(new ScanCommand(scanInput));
     const items: ITEM[] = output.Items as ITEM[];
     const details: ItemsDetails = {
       Count: output.Count,
@@ -141,20 +175,16 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param item the item to store in the table
    * @param ttl the time-to-live value of how long to persist the item in the cache
    */
-  async put(
-    item: ITEM,
-    ttl?: number,
-    conditionExpression?: DynamoDB.DocumentClient.ConditionExpression
-  ): Promise<ITEM> {
-    const putItemInput: DynamoDB.DocumentClient.PutItemInput = {
+  async put(item: ITEM, ttl?: number, conditionExpression?: PutItemCommandInput['ConditionExpression']): Promise<ITEM> {
+    const putItemInput: PutCommandInput = {
       TableName: this.tableName,
       Item: item,
       ...(conditionExpression ? { ConditionExpression: conditionExpression } : {}),
     };
-    await this.dynamoDbDocClient.put(putItemInput).promise();
+    await this.dynamoDbDocClient.send(new PutCommand(putItemInput));
 
     if (ttl) {
-      const key: DynamoDB.DocumentClient.Key = buildKey(this.tableKeySchema, item);
+      const key: GetItemCommandInput['Key'] = buildKey(this.tableKeySchema, item);
       const cacheKey: string = buildCacheKey(CACHE_PREFIX_KEY, this.tableName, key);
       await this.dynamodbCache.setInCache(cacheKey, item, ttl);
     }
@@ -168,14 +198,14 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param ttl the time-to-live value of how long to persist the item in the cache
    */
   async update(
-    key: DynamoDB.DocumentClient.Key,
-    updateExpression: DynamoDB.DocumentClient.UpdateExpression,
-    expressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap,
-    expressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap,
+    key: UpdateItemCommandInput['Key'],
+    updateExpression: UpdateItemCommandInput['UpdateExpression'],
+    expressionAttributeNames: UpdateItemCommandInput['ExpressionAttributeNames'],
+    expressionAttributeValues: UpdateItemCommandInput['ExpressionAttributeValues'],
     ttl?: number,
-    conditionExpression?: DynamoDB.DocumentClient.ConditionExpression
+    conditionExpression?: UpdateItemCommandInput['ConditionExpression']
   ): Promise<ITEM> {
-    const updateItemInput: DynamoDB.DocumentClient.UpdateItemInput = {
+    const updateItemInput: UpdateCommandInput = {
       TableName: this.tableName,
       Key: key,
       ReturnValues: 'ALL_NEW',
@@ -184,7 +214,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
       ExpressionAttributeValues: expressionAttributeValues,
       ...(conditionExpression ? { ConditionExpression: conditionExpression } : {}),
     };
-    const output = await this.dynamoDbDocClient.update(updateItemInput).promise();
+    const output = await this.dynamoDbDocClient.send(new UpdateCommand(updateItemInput));
     const updated: ITEM = output.Attributes as ITEM;
 
     if (updated && ttl) {
@@ -196,14 +226,14 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   }
 
   async updateConditional(
-    key: DynamoDB.DocumentClient.Key,
-    updateExpression: DynamoDB.DocumentClient.UpdateExpression,
-    conditionExpression: DynamoDB.DocumentClient.ConditionExpression,
-    expressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap,
-    expressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap,
+    key: UpdateItemCommandInput['Key'],
+    updateExpression: UpdateItemCommandInput['UpdateExpression'],
+    conditionExpression: UpdateItemCommandInput['ConditionExpression'],
+    expressionAttributeNames: UpdateItemCommandInput['ExpressionAttributeNames'],
+    expressionAttributeValues: UpdateItemCommandInput['ExpressionAttributeValues'],
     ttl?: number
   ): Promise<ITEM> {
-    const updateItemInput: DynamoDB.DocumentClient.UpdateItemInput = {
+    const updateItemInput: UpdateCommandInput = {
       TableName: this.tableName,
       Key: key,
       ReturnValues: 'ALL_NEW',
@@ -212,7 +242,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
       ExpressionAttributeValues: expressionAttributeValues,
       ConditionExpression: conditionExpression,
     };
-    const output = await this.dynamoDbDocClient.update(updateItemInput).promise();
+    const output = await this.dynamoDbDocClient.send(new UpdateCommand(updateItemInput));
     const updated: ITEM = output.Attributes as ITEM;
 
     if (updated && ttl) {
@@ -227,13 +257,13 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * Delete the given item from the table
    * @param key the key of the item to delete from the table
    */
-  async delete(key: DynamoDB.DocumentClient.Key): Promise<void> {
-    const deleteItemInput: DynamoDB.DocumentClient.DeleteItemInput = {
+  async delete(key: GetItemCommandInput['Key']): Promise<void> {
+    const deleteItemInput: DeleteCommandInput = {
       TableName: this.tableName,
       Key: key,
     };
 
-    await this.dynamoDbDocClient.delete(deleteItemInput).promise();
+    await this.dynamoDbDocClient.send(new DeleteCommand(deleteItemInput));
 
     await this.dynamodbCache.removeItemFromCache(this.tableName, key);
   }
