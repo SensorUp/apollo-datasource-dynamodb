@@ -1,12 +1,9 @@
 import { ApolloError } from 'apollo-server-errors';
-import { mockClient } from 'aws-sdk-client-mock';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, GetCommand, GetCommandInput } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, GetCommandInput, PutCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 
 import { DynamoDBCacheImpl, CACHE_PREFIX_KEY, TTL_SEC } from '../DynamoDBCache';
 import { buildCacheKey } from '../utils';
-
-const dynamodbMock = mockClient(DynamoDBDocumentClient);
 
 interface TestHashOnlyItem {
   id: string;
@@ -14,7 +11,13 @@ interface TestHashOnlyItem {
 }
 
 describe('DynamoDBCache', () => {
-  const dynamoDbClient = new DynamoDBClient({});
+  const dynamoDbClient = new DynamoDBClient({
+    ...(process.env.MOCK_DYNAMODB_ENDPOINT && {
+      endpoint: process.env.MOCK_DYNAMODB_ENDPOINT,
+      sslEnabled: false,
+      region: 'local',
+    }),
+  });
   const dynamoDbDocumentClient = DynamoDBDocumentClient.from(dynamoDbClient);
 
   describe('retrieveFromCache', () => {
@@ -147,7 +150,7 @@ describe('DynamoDBCache', () => {
       };
       const givenTtl = TTL_SEC;
       const expected = testHashOnlyItem;
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as any);
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as never);
 
       retrieveFromCacheMock.mockResolvedValueOnce(expected);
 
@@ -166,31 +169,32 @@ describe('DynamoDBCache', () => {
       };
       const givenTtl = TTL_SEC;
 
-      dynamodbMock.on(GetCommand, givenGetItemInput).resolves({ Item: testHashOnlyItem });
-      //    await dynamodbCache.docClient.send(
-      //      new PutCommand({
-      //        TableName: testHashOnlyTableName,
-      //        Item: testHashOnlyItem,
-      //      })
-      //    );
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as any);
+      await dynamodbCache.docClient.send(
+        new PutCommand({
+          TableName: testHashOnlyTableName,
+          Item: testHashOnlyItem,
+        })
+      );
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as never);
 
       retrieveFromCacheMock.mockResolvedValueOnce(undefined);
       setInCacheMock.mockResolvedValueOnce();
 
+      const { Item } = await dynamodbCache.docClient.send(new GetCommand(givenGetItemInput));
       const actual: TestHashOnlyItem = await dynamodbCache.getItem(givenGetItemInput, givenTtl);
 
       expect(actual).toBeDefined();
+      expect(actual).toEqual(Item);
       expect(actual).toEqual(testHashOnlyItem);
       expect(retrieveFromCacheMock).toBeCalledWith(cacheKey);
       expect(setInCacheMock).toBeCalledWith(cacheKey, actual, givenTtl);
 
-      //    await dynamodbCache.docClient.send(
-      //      new DeleteCommand({
-      //        TableName: testHashOnlyTableName,
-      //        Key: { id: 'testId' },
-      //      })
-      //    );
+      await dynamodbCache.docClient.send(
+        new DeleteCommand({
+          TableName: testHashOnlyTableName,
+          Key: { id: 'testId' },
+        })
+      );
     });
 
     it('should return an ApolloError if an error is thrown retrieving the record', async () => {
@@ -200,7 +204,7 @@ describe('DynamoDBCache', () => {
         Key: { id: 'testId' },
       };
       const givenTtl = TTL_SEC;
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as any);
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'testId' } as never);
       const error = new Error('Error setting item in cache');
 
       retrieveFromCacheMock.mockRejectedValueOnce(error);
@@ -219,7 +223,7 @@ describe('DynamoDBCache', () => {
         Key: { id: 'does_not_exist' },
       };
       const givenTtl = TTL_SEC;
-      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'does_not_exist' } as any);
+      const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, testHashOnlyTableName, { id: 'does_not_exist' } as never);
 
       retrieveFromCacheMock.mockRejectedValueOnce(undefined);
 

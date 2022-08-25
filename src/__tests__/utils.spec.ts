@@ -14,7 +14,7 @@ describe('buildCacheKey', () => {
     const givenTableName = 'test';
     const givenKey: GetItemCommandInput['Key'] = {
       id: 'testId',
-    } as any;
+    } as never;
     const expected = 'test:test:id-testId';
 
     const actual = buildCacheKey(givenCachePrefix, givenTableName, givenKey);
@@ -27,7 +27,7 @@ describe('buildCacheKey', () => {
     const givenKey: GetItemCommandInput['Key'] = {
       id: 'testId',
       timestamp: '2020-01-01 00:00:00',
-    } as any;
+    } as never;
     const expected = 'test:test:id-testId:timestamp-2020-01-01 00:00:00';
 
     const actual = buildCacheKey(givenCachePrefix, givenTableName, givenKey);
@@ -115,7 +115,7 @@ describe('buildKey', () => {
     };
     const expected: GetItemCommandInput['Key'] = {
       id: 'testId',
-    } as any;
+    } as never;
 
     const actual = buildKey(givenKeySchema, givenItem);
 
@@ -141,7 +141,7 @@ describe('buildKey', () => {
     const expected: GetItemCommandInput['Key'] = {
       id: 'testId',
       timestamp: '2020-01-01 00:00:00',
-    } as any;
+    } as never;
 
     const actual = buildKey(givenKeySchema, givenItem);
 

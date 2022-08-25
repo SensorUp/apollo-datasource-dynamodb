@@ -2,16 +2,8 @@ import { DataSource, DataSourceConfig } from 'apollo-datasource';
 
 import { Agent } from 'https';
 import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
-import { captureAWSv3Client } from 'aws-xray-sdk-core';
 
-import {
-  DynamoDBClient,
-  DynamoDBClientConfig,
-  CreateTableCommandInput,
-  GetItemCommandInput,
-  PutItemCommandInput,
-  UpdateItemCommandInput,
-} from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, DynamoDBClientConfig, CreateTableCommandInput } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   PutCommand,
@@ -73,7 +65,8 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     if (client != null) {
       this.dynamoDbDocClient = client;
     } else {
-      const dynamoDbClient = captureAWSv3Client(new DynamoDBClient({ ...awsClientDefaultOptions, ...config }));
+      // @TODO optional captureAWSv3Client
+      const dynamoDbClient = new DynamoDBClient({ ...awsClientDefaultOptions, ...config });
       this.dynamoDbDocClient = DynamoDBDocumentClient.from(dynamoDbClient);
     }
   }
@@ -175,7 +168,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param item the item to store in the table
    * @param ttl the time-to-live value of how long to persist the item in the cache
    */
-  async put(item: ITEM, ttl?: number, conditionExpression?: PutItemCommandInput['ConditionExpression']): Promise<ITEM> {
+  async put(item: ITEM, ttl?: number, conditionExpression?: PutCommandInput['ConditionExpression']): Promise<ITEM> {
     const putItemInput: PutCommandInput = {
       TableName: this.tableName,
       Item: item,
@@ -184,7 +177,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     await this.dynamoDbDocClient.send(new PutCommand(putItemInput));
 
     if (ttl) {
-      const key: GetItemCommandInput['Key'] = buildKey(this.tableKeySchema, item);
+      const key: GetCommandInput['Key'] = buildKey(this.tableKeySchema, item);
       const cacheKey: string = buildCacheKey(CACHE_PREFIX_KEY, this.tableName, key);
       await this.dynamodbCache.setInCache(cacheKey, item, ttl);
     }
@@ -198,12 +191,12 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param ttl the time-to-live value of how long to persist the item in the cache
    */
   async update(
-    key: UpdateItemCommandInput['Key'],
-    updateExpression: UpdateItemCommandInput['UpdateExpression'],
-    expressionAttributeNames: UpdateItemCommandInput['ExpressionAttributeNames'],
-    expressionAttributeValues: UpdateItemCommandInput['ExpressionAttributeValues'],
+    key: UpdateCommandInput['Key'],
+    updateExpression: UpdateCommandInput['UpdateExpression'],
+    expressionAttributeNames: UpdateCommandInput['ExpressionAttributeNames'],
+    expressionAttributeValues: UpdateCommandInput['ExpressionAttributeValues'],
     ttl?: number,
-    conditionExpression?: UpdateItemCommandInput['ConditionExpression']
+    conditionExpression?: UpdateCommandInput['ConditionExpression']
   ): Promise<ITEM> {
     const updateItemInput: UpdateCommandInput = {
       TableName: this.tableName,
@@ -226,11 +219,11 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
   }
 
   async updateConditional(
-    key: UpdateItemCommandInput['Key'],
-    updateExpression: UpdateItemCommandInput['UpdateExpression'],
-    conditionExpression: UpdateItemCommandInput['ConditionExpression'],
-    expressionAttributeNames: UpdateItemCommandInput['ExpressionAttributeNames'],
-    expressionAttributeValues: UpdateItemCommandInput['ExpressionAttributeValues'],
+    key: UpdateCommandInput['Key'],
+    updateExpression: UpdateCommandInput['UpdateExpression'],
+    conditionExpression: UpdateCommandInput['ConditionExpression'],
+    expressionAttributeNames: UpdateCommandInput['ExpressionAttributeNames'],
+    expressionAttributeValues: UpdateCommandInput['ExpressionAttributeValues'],
     ttl?: number
   ): Promise<ITEM> {
     const updateItemInput: UpdateCommandInput = {
@@ -257,7 +250,7 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * Delete the given item from the table
    * @param key the key of the item to delete from the table
    */
-  async delete(key: GetItemCommandInput['Key']): Promise<void> {
+  async delete(key: GetCommandInput['Key']): Promise<void> {
     const deleteItemInput: DeleteCommandInput = {
       TableName: this.tableName,
       Key: key,

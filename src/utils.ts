@@ -16,7 +16,7 @@ import { CacheKeyItemMap } from './types';
  * @param key the key value for the record
  */
 export const buildCacheKey = (cachePrefix: string, tableName: string, key: GetItemCommandInput['Key']): string => {
-  const keysStr = Object.entries(key).reduce((accum: string, curr: any) => {
+  const keysStr = Object.entries(key).reduce((accum: string, curr: never) => {
     return `${accum}:${curr[0]}-${curr[1]}`;
   }, '');
   return `${cachePrefix}${tableName}${keysStr}`;
