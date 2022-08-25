@@ -1,4 +1,4 @@
-import { DynamoDB } from 'aws-sdk';
+import { CreateTableCommandInput, GetItemCommandInput, KeySchemaElement } from '@aws-sdk/client-dynamodb';
 
 import { CacheKeyItemMap } from './types';
 
@@ -15,8 +15,8 @@ import { CacheKeyItemMap } from './types';
  * @param tableName the name of the DynamoDB table
  * @param key the key value for the record
  */
-export const buildCacheKey = (cachePrefix: string, tableName: string, key: DynamoDB.DocumentClient.Key): string => {
-  const keysStr = Object.entries(key).reduce((accum: string, curr: [string, string]) => {
+export const buildCacheKey = (cachePrefix: string, tableName: string, key: GetItemCommandInput['Key']): string => {
+  const keysStr = Object.entries(key).reduce((accum: string, curr: never) => {
     return `${accum}:${curr[0]}-${curr[1]}`;
   }, '');
   return `${cachePrefix}${tableName}${keysStr}`;
@@ -27,8 +27,8 @@ export const buildCacheKey = (cachePrefix: string, tableName: string, key: Dynam
  * @param keySchema the tables key schema. defines the HASH, RANGE (optional) schema.
  * @param item the item to pull values from the key for
  */
-export function buildKey<T>(keySchema: DynamoDB.DocumentClient.KeySchema, item: T): DynamoDB.DocumentClient.Key {
-  return keySchema.reduce((prevKeys, keyElement: DynamoDB.DocumentClient.KeySchemaElement) => {
+export function buildKey<T>(keySchema: CreateTableCommandInput['KeySchema'], item: T): GetItemCommandInput['Key'] {
+  return keySchema.reduce((prevKeys, keyElement: KeySchemaElement) => {
     return {
       ...prevKeys,
       [keyElement.AttributeName]: item[keyElement.AttributeName],
@@ -74,11 +74,11 @@ export function buildKey<T>(keySchema: DynamoDB.DocumentClient.KeySchema, item: 
 export function buildItemsCacheMap<T = unknown>(
   cachePrefix: string,
   tableName: string,
-  keySchema: DynamoDB.DocumentClient.KeySchema,
+  keySchema: CreateTableCommandInput['KeySchema'],
   items: T[]
 ): CacheKeyItemMap<T> {
-  return items.reduce((accum: {}, curr: T) => {
-    const key: DynamoDB.DocumentClient.Key = buildKey(keySchema, curr);
+  return items.reduce((accum: Record<string, never>, curr: T) => {
+    const key: GetItemCommandInput['Key'] = buildKey(keySchema, curr);
     const cacheKey = buildCacheKey(cachePrefix, tableName, key);
     return {
       ...accum,

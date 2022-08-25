@@ -1,7 +1,17 @@
 import { ApolloError } from 'apollo-server-errors';
 import { DataSourceConfig } from 'apollo-datasource';
-import { DynamoDB } from 'aws-sdk';
-import { ClientConfiguration } from 'aws-sdk/clients/dynamodb';
+
+import { DynamoDBClientConfig, CreateTableCommandInput } from '@aws-sdk/client-dynamodb';
+import {
+  GetCommand,
+  DeleteCommand,
+  PutCommand,
+  GetCommandInput,
+  ScanCommandInput,
+  QueryCommandInput,
+  UpdateCommandInput,
+  DeleteCommandInput,
+} from '@aws-sdk/lib-dynamodb';
 
 import { DynamoDBDataSource } from '../DynamoDBDataSource';
 import { CACHE_PREFIX_KEY } from '../DynamoDBCache';
@@ -16,16 +26,16 @@ interface TestHashOnlyItem {
 }
 
 class TestHashOnly extends DynamoDBDataSource<TestHashOnlyItem> {
-  constructor(tableName: string, tableKeySchema: DynamoDB.DocumentClient.KeySchema, config?: ClientConfiguration) {
+  constructor(tableName: string, tableKeySchema: CreateTableCommandInput['KeySchema'], config?: DynamoDBClientConfig) {
     super(tableName, tableKeySchema, config);
   }
 
-  initialize(config: DataSourceConfig<{}>): void {
+  initialize(config: DataSourceConfig<Record<string, never>>): void {
     super.initialize(config);
   }
 }
 
-const keySchema: DynamoDB.DocumentClient.KeySchema = [
+const keySchema: CreateTableCommandInput['KeySchema'] = [
   {
     AttributeName: 'id',
     KeyType: 'HASH',
@@ -34,7 +44,7 @@ const keySchema: DynamoDB.DocumentClient.KeySchema = [
 const testHashOnly = new TestHashOnly('test_hash_only', keySchema, {
   region: 'local',
   endpoint: MOCK_DYNAMODB_ENDPOINT,
-  sslEnabled: false,
+  tls: false,
 });
 testHashOnly.initialize({ context: {}, cache: null });
 
@@ -45,21 +55,21 @@ const testHashOnlyItem: TestHashOnlyItem = {
 const items: TestHashOnlyItem[] = [testHashOnlyItem];
 
 beforeAll(async () => {
-  await testHashOnly.dynamoDbDocClient
-    .put({
+  await testHashOnly.dynamoDbDocClient.send(
+    new PutCommand({
       TableName: testHashOnly.tableName,
       Item: testHashOnlyItem,
     })
-    .promise();
+  );
 });
 
 afterAll(async () => {
-  await testHashOnly.dynamoDbDocClient
-    .delete({
+  await testHashOnly.dynamoDbDocClient.send(
+    new DeleteCommand({
       TableName: testHashOnly.tableName,
       Key: { id: 'testId' },
     })
-    .promise();
+  );
 });
 
 describe('DynamoDBDataSource', () => {
@@ -81,7 +91,7 @@ describe('DynamoDBDataSource', () => {
     });
 
     it('should return a TestHashOnly item', async () => {
-      const getItemInput: DynamoDB.DocumentClient.GetItemInput = {
+      const getItemInput: GetCommandInput = {
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
@@ -98,7 +108,7 @@ describe('DynamoDBDataSource', () => {
     });
 
     it('should throw an ApolloError if an issue occurs retrieving the record', async () => {
-      const getItemInput: DynamoDB.DocumentClient.GetItemInput = {
+      const getItemInput: GetCommandInput = {
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
@@ -126,7 +136,7 @@ describe('DynamoDBDataSource', () => {
   });
 
   it('query should return a list of TestHashOnlyItem records and add items to the cache', async () => {
-    const queryInput: DynamoDB.DocumentClient.QueryInput = {
+    const queryInput: QueryCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
       KeyConditionExpression: 'id = :id',
@@ -136,12 +146,12 @@ describe('DynamoDBDataSource', () => {
     };
     const ttl = 30;
 
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: testHashOnlyItem,
       })
-      .promise();
+    );
 
     dynamodbCacheSetItemsInCacheMock.mockResolvedValueOnce();
 
@@ -158,7 +168,7 @@ describe('DynamoDBDataSource', () => {
   });
 
   it('query should return an empty list. setItemsInCache should not be invoked', async () => {
-    const queryInput: DynamoDB.DocumentClient.QueryInput = {
+    const queryInput: QueryCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
       KeyConditionExpression: 'id = :id',
@@ -174,7 +184,7 @@ describe('DynamoDBDataSource', () => {
     expect(dynamodbCacheSetItemsInCacheMock).not.toBeCalled();
   });
   it('queryDetails should return an empty list. setItemsInCache should not be invoked', async () => {
-    const queryInput: DynamoDB.DocumentClient.QueryInput = {
+    const queryInput: QueryCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
       KeyConditionExpression: 'id = :id',
@@ -191,7 +201,7 @@ describe('DynamoDBDataSource', () => {
   });
 
   it('query should return a list of TestHashOnlyItem records but not add items to cache because of no ttl', async () => {
-    const queryInput: DynamoDB.DocumentClient.QueryInput = {
+    const queryInput: QueryCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
       KeyConditionExpression: 'id = :id',
@@ -200,12 +210,12 @@ describe('DynamoDBDataSource', () => {
       },
     };
 
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: testHashOnlyItem,
       })
-      .promise();
+    );
 
     const actual: TestHashOnlyItem[] = await testHashOnly.query(queryInput);
 
@@ -214,18 +224,18 @@ describe('DynamoDBDataSource', () => {
   });
 
   it('scan should return a list of TestHashOnlyItem records and add items to the cache', async () => {
-    const scanInput: DynamoDB.DocumentClient.ScanInput = {
+    const scanInput: ScanCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
     };
     const ttl = 30;
 
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: testHashOnlyItem,
       })
-      .promise();
+    );
 
     dynamodbCacheSetItemsInCacheMock.mockResolvedValueOnce();
 
@@ -242,7 +252,7 @@ describe('DynamoDBDataSource', () => {
   });
 
   it('scan should return an empty list. setItemsInCache should not be invoked', async () => {
-    const scanInput: DynamoDB.DocumentClient.ScanInput = {
+    const scanInput: ScanCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
     };
@@ -254,7 +264,7 @@ describe('DynamoDBDataSource', () => {
     expect(dynamodbCacheSetItemsInCacheMock).not.toBeCalled();
   });
   it('scanDetails should return an empty list. setItemsInCache should not be invoked', async () => {
-    const scanInput: DynamoDB.DocumentClient.ScanInput = {
+    const scanInput: ScanCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
     };
@@ -267,17 +277,17 @@ describe('DynamoDBDataSource', () => {
   });
 
   it('scan should return a list of TestHashOnlyItem records but not add items to cache because of no ttl', async () => {
-    const scanInput: DynamoDB.DocumentClient.ScanInput = {
+    const scanInput: ScanCommandInput = {
       TableName: testHashOnly.tableName,
       ConsistentRead: true,
     };
 
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: testHashOnlyItem,
       })
-      .promise();
+    );
 
     const actual: TestHashOnlyItem[] = await testHashOnly.scan(scanInput);
 
@@ -296,27 +306,27 @@ describe('DynamoDBDataSource', () => {
     dynamodbCacheSetInCacheMock.mockResolvedValueOnce();
 
     const actual: TestHashOnlyItem = await testHashOnly.put(item2, ttl);
-    const { Item } = await testHashOnly.dynamoDbDocClient
-      .get({
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
           id: 'testId2',
         },
       })
-      .promise();
+    );
 
     expect(actual).toEqual(item2);
     expect(Item).toBeDefined();
     expect(actual).toEqual(Item);
     expect(dynamodbCacheSetInCacheMock).toBeCalledWith(cacheKey, actual, ttl);
 
-    await testHashOnly.dynamoDbDocClient
-      .delete({
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
         TableName: testHashOnly.tableName,
         Key: { id: 'testId2' },
       })
-      .promise();
+    );
   });
 
   it('should put the item and not store it in the cache because the ttl is null', async () => {
@@ -326,27 +336,27 @@ describe('DynamoDBDataSource', () => {
     };
 
     const actual: TestHashOnlyItem = await testHashOnly.put(item3);
-    const { Item } = await testHashOnly.dynamoDbDocClient
-      .get({
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
           id: 'testId3',
         },
       })
-      .promise();
+    );
 
     expect(actual).toEqual(item3);
     expect(Item).toBeDefined();
     expect(actual).toEqual(Item);
     expect(dynamodbCacheSetInCacheMock).not.toBeCalled();
 
-    await testHashOnly.dynamoDbDocClient
-      .delete({
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
         TableName: testHashOnly.tableName,
         Key: { id: 'testId3' },
       })
-      .promise();
+    );
   });
 
   it('should update the item in the table and store it in the cache', async () => {
@@ -358,17 +368,17 @@ describe('DynamoDBDataSource', () => {
       id: 'testId2',
       test: 'testing_updated',
     };
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: item2,
       })
-      .promise();
+    );
 
-    const givenKey: DynamoDB.DocumentClient.Key = { id: 'testId2' };
-    const givenUpdateExpression: DynamoDB.DocumentClient.UpdateExpression = 'SET #test = :test';
-    const givenExpressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap = { '#test': 'test' };
-    const givenExpressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap = {
+    const givenKey: UpdateCommandInput['Key'] = { id: 'testId2' } as never;
+    const givenUpdateExpression: UpdateCommandInput['UpdateExpression'] = 'SET #test = :test';
+    const givenExpressionAttributeNames: UpdateCommandInput['ExpressionAttributeNames'] = { '#test': 'test' };
+    const givenExpressionAttributeValues: UpdateCommandInput['ExpressionAttributeValues'] = {
       ':test': 'testing_updated',
     };
     const ttl = 30;
@@ -383,27 +393,27 @@ describe('DynamoDBDataSource', () => {
       givenExpressionAttributeValues,
       ttl
     );
-    const { Item } = await testHashOnly.dynamoDbDocClient
-      .get({
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
           id: 'testId2',
         },
       })
-      .promise();
+    );
 
     expect(actual).toEqual(itemUpdated);
     expect(Item).toBeDefined();
     expect(actual).toEqual(Item);
     expect(dynamodbCacheSetInCacheMock).toBeCalledWith(cacheKey, actual, ttl);
 
-    await testHashOnly.dynamoDbDocClient
-      .delete({
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
         TableName: testHashOnly.tableName,
         Key: { id: 'testId2' },
       })
-      .promise();
+    );
   });
 
   it('should update the item in the table and not set the item in the cache - no ttl passed in', async () => {
@@ -415,17 +425,17 @@ describe('DynamoDBDataSource', () => {
       id: 'testId2',
       test: 'testing_updated',
     };
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: item2,
       })
-      .promise();
+    );
 
-    const givenKey: DynamoDB.DocumentClient.Key = { id: 'testId2' };
-    const givenUpdateExpression: DynamoDB.DocumentClient.UpdateExpression = 'SET #test = :test';
-    const givenExpressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap = { '#test': 'test' };
-    const givenExpressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap = {
+    const givenKey: UpdateCommandInput['Key'] = { id: 'testId2' } as never;
+    const givenUpdateExpression: UpdateCommandInput['UpdateExpression'] = 'SET #test = :test';
+    const givenExpressionAttributeNames: UpdateCommandInput['ExpressionAttributeNames'] = { '#test': 'test' };
+    const givenExpressionAttributeValues: UpdateCommandInput['ExpressionAttributeValues'] = {
       ':test': 'testing_updated',
     };
 
@@ -435,27 +445,27 @@ describe('DynamoDBDataSource', () => {
       givenExpressionAttributeNames,
       givenExpressionAttributeValues
     );
-    const { Item } = await testHashOnly.dynamoDbDocClient
-      .get({
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
           id: 'testId2',
         },
       })
-      .promise();
+    );
 
     expect(actual).toEqual(itemUpdated);
     expect(Item).toBeDefined();
     expect(actual).toEqual(Item);
     expect(dynamodbCacheSetInCacheMock).not.toBeCalled();
 
-    await testHashOnly.dynamoDbDocClient
-      .delete({
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
         TableName: testHashOnly.tableName,
         Key: { id: 'testId2' },
       })
-      .promise();
+    );
   });
 
   it('should updateConditional the item in the table and store it in the cache', async () => {
@@ -467,20 +477,21 @@ describe('DynamoDBDataSource', () => {
       id: 'testId2',
       test: 'testing_updated',
     };
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: item2,
       })
-      .promise();
+    );
 
-    const givenKey: DynamoDB.DocumentClient.Key = { id: 'testId2' };
-    const givenUpdateExpression: DynamoDB.DocumentClient.UpdateExpression = 'SET #test = :test';
-    const givenConditionalExpression: DynamoDB.DocumentClient.ConditionExpression = '#test <> :test';
-    const givenExpressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap = { '#test': 'test' };
-    const givenExpressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap = {
+    const givenKey: UpdateCommandInput['Key'] = { id: 'testId2' } as never;
+    const givenUpdateExpression: UpdateCommandInput['UpdateExpression'] = 'SET #test = :test';
+    const givenConditionalExpression: UpdateCommandInput['ConditionExpression'] = '#test <> :test';
+    const givenExpressionAttributeNames: UpdateCommandInput['ExpressionAttributeNames'] = { '#test': 'test' };
+    const givenExpressionAttributeValues: UpdateCommandInput['ExpressionAttributeValues'] = {
       ':test': 'testing_updated',
     };
+
     const ttl = 30;
     const cacheKey = `${CACHE_PREFIX_KEY}${testHashOnly.tableName}:id-testId2`;
 
@@ -494,27 +505,27 @@ describe('DynamoDBDataSource', () => {
       givenExpressionAttributeValues,
       ttl
     );
-    const { Item } = await testHashOnly.dynamoDbDocClient
-      .get({
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
           id: 'testId2',
         },
       })
-      .promise();
+    );
 
     expect(actual).toEqual(itemUpdated);
     expect(Item).toBeDefined();
     expect(actual).toEqual(Item);
     expect(dynamodbCacheSetInCacheMock).toBeCalledWith(cacheKey, actual, ttl);
 
-    await testHashOnly.dynamoDbDocClient
-      .delete({
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
         TableName: testHashOnly.tableName,
         Key: { id: 'testId2' },
       })
-      .promise();
+    );
   });
 
   it('should updateConditional the item in the table and not set the item in the cache - no ttl passed in', async () => {
@@ -526,18 +537,18 @@ describe('DynamoDBDataSource', () => {
       id: 'testId2',
       test: 'testing_updated',
     };
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: item2,
       })
-      .promise();
+    );
 
-    const givenKey: DynamoDB.DocumentClient.Key = { id: 'testId2' };
-    const givenUpdateExpression: DynamoDB.DocumentClient.UpdateExpression = 'SET #test = :test';
-    const givenConditionalExpression: DynamoDB.DocumentClient.ConditionExpression = '#test <> :test';
-    const givenExpressionAttributeNames: DynamoDB.DocumentClient.ExpressionAttributeNameMap = { '#test': 'test' };
-    const givenExpressionAttributeValues: DynamoDB.DocumentClient.ExpressionAttributeValueMap = {
+    const givenKey: UpdateCommandInput['Key'] = { id: 'testId2' } as never;
+    const givenUpdateExpression: UpdateCommandInput['UpdateExpression'] = 'SET #test = :test';
+    const givenConditionalExpression: UpdateCommandInput['ConditionExpression'] = '#test <> :test';
+    const givenExpressionAttributeNames: UpdateCommandInput['ExpressionAttributeNames'] = { '#test': 'test' };
+    const givenExpressionAttributeValues: UpdateCommandInput['ExpressionAttributeValues'] = {
       ':test': 'testing_updated',
     };
 
@@ -548,27 +559,27 @@ describe('DynamoDBDataSource', () => {
       givenExpressionAttributeNames,
       givenExpressionAttributeValues
     );
-    const { Item } = await testHashOnly.dynamoDbDocClient
-      .get({
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
           id: 'testId2',
         },
       })
-      .promise();
+    );
 
     expect(actual).toEqual(itemUpdated);
     expect(Item).toBeDefined();
     expect(actual).toEqual(Item);
     expect(dynamodbCacheSetInCacheMock).not.toBeCalled();
 
-    await testHashOnly.dynamoDbDocClient
-      .delete({
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
         TableName: testHashOnly.tableName,
         Key: { id: 'testId2' },
       })
-      .promise();
+    );
   });
 
   it('should delete the item from the table', async () => {
@@ -578,28 +589,28 @@ describe('DynamoDBDataSource', () => {
       id: 'delete_me',
       test: 'gonna be deleted',
     };
-    await testHashOnly.dynamoDbDocClient
-      .put({
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
         TableName: testHashOnly.tableName,
         Item: itemToDelete,
       })
-      .promise();
+    );
 
-    const givenKey: DynamoDB.DocumentClient.Key = { id: 'delete_me' };
+    const givenKey: DeleteCommandInput['Key'] = { id: 'delete_me' } as never;
 
     dynamodbCacheRemoveItemFromCacheMock.mockResolvedValueOnce();
 
     await testHashOnly.delete(givenKey);
 
-    const { Item } = await testHashOnly.dynamoDbDocClient
-      .get({
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
         TableName: testHashOnly.tableName,
         ConsistentRead: true,
         Key: {
           id: 'delete_me',
         },
       })
-      .promise();
+    );
 
     expect(Item).not.toBeDefined();
     expect(dynamodbCacheRemoveItemFromCacheMock).toBeCalledWith(testHashOnly.tableName, givenKey);

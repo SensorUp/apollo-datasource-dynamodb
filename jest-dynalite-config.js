@@ -1,4 +1,4 @@
-{
+module.exports = {
   "tables": [
     {
       "TableName": "test_hash_only",

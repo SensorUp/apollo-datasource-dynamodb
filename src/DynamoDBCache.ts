@@ -1,6 +1,7 @@
 import { KeyValueCache, InMemoryLRUCache, PrefixingKeyValueCache } from 'apollo-server-caching';
 import { ApolloError } from 'apollo-server-errors';
-import { DynamoDB } from 'aws-sdk';
+import { GetItemCommandInput } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, GetCommandInput, GetCommandOutput } from '@aws-sdk/lib-dynamodb';
 
 import { buildCacheKey } from './utils';
 import { CacheKeyItemMap } from './types';
@@ -9,22 +10,22 @@ export const CACHE_PREFIX_KEY = 'dynamodbcache:';
 export const TTL_SEC = 30 * 60; // the default time-to-live value for the cache in seconds
 
 export interface DynamoDBCache<T = unknown> {
-  getItem: (getItemInput: DynamoDB.DocumentClient.GetItemInput, ttl?: number) => Promise<T>;
+  getItem: (getItemInput: GetCommandInput, ttl?: number) => Promise<T>;
   setInCache: (key: string, item: T, ttl: number) => Promise<void>;
   setItemsInCache: (items: CacheKeyItemMap<T>, ttl: number) => Promise<void>;
-  removeItemFromCache: (tableName: string, key: DynamoDB.DocumentClient.Key) => Promise<boolean | void>;
+  removeItemFromCache: (tableName: string, key: GetItemCommandInput['Key']) => Promise<boolean | void>;
 }
 
 export class DynamoDBCacheImpl<T = unknown> implements DynamoDBCache<T> {
   readonly keyValueCache: KeyValueCache;
-  readonly docClient: DynamoDB.DocumentClient;
+  readonly docClient: DynamoDBDocumentClient;
 
   /**
    * Construct a new instance of `DynamoDBCache` with the given configuration
    * @param docClient the DynamoDB.DocumentClient instance
    * @param keyValueCache the key value caching client used to cache and retrieve records
    */
-  constructor(docClient: DynamoDB.DocumentClient, keyValueCache: KeyValueCache = new InMemoryLRUCache()) {
+  constructor(docClient: DynamoDBDocumentClient, keyValueCache: KeyValueCache = new InMemoryLRUCache()) {
     this.keyValueCache = new PrefixingKeyValueCache(keyValueCache, CACHE_PREFIX_KEY);
     this.docClient = docClient;
   }
@@ -73,7 +74,7 @@ export class DynamoDBCacheImpl<T = unknown> implements DynamoDBCache<T> {
    * @param getItemInput the input that provides information about which record to retrieve from the cache/dynamodb table
    * @param ttl the time-to-live value of the item in the cache. determines how long the item persists in the cache
    */
-  async getItem(getItemInput: DynamoDB.DocumentClient.GetItemInput, ttl?: number): Promise<T> {
+  async getItem(getItemInput: GetCommandInput, ttl?: number): Promise<T> {
     try {
       const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, getItemInput.TableName, getItemInput.Key);
       const itemFromCache: T | undefined = await this.retrieveFromCache(cacheKey);
@@ -82,7 +83,7 @@ export class DynamoDBCacheImpl<T = unknown> implements DynamoDBCache<T> {
       }
 
       // item is not in cache, retrieve from DynamoDB, if found, set in cache, otherwise throw ApolloError
-      const output: DynamoDB.DocumentClient.GetItemOutput = await this.docClient.get(getItemInput).promise();
+      const output: GetCommandOutput = await this.docClient.send(new GetCommand(getItemInput));
       const item: T | undefined = output.Item as T;
 
       await this.setInCache(cacheKey, item, ttl);
@@ -98,7 +99,7 @@ export class DynamoDBCacheImpl<T = unknown> implements DynamoDBCache<T> {
    * @param tableName the table name the item belong in. used to build the cache key
    * @param key the dynamodb key value of the record. used to build the cache key
    */
-  async removeItemFromCache(tableName: string, key: DynamoDB.DocumentClient.Key): Promise<boolean | void> {
+  async removeItemFromCache(tableName: string, key: GetItemCommandInput['Key']): Promise<boolean | void> {
     try {
       const cacheKey = buildCacheKey(CACHE_PREFIX_KEY, tableName, key);
       return await this.keyValueCache.delete(cacheKey);

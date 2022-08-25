@@ -1,5 +1,4 @@
-import { DynamoDB } from 'aws-sdk';
-
+import { CreateTableCommandInput, GetItemCommandInput } from '@aws-sdk/client-dynamodb';
 import { CacheKeyItemMap } from '../types';
 import { buildCacheKey, buildItemsCacheMap, buildKey } from '../utils';
 
@@ -13,9 +12,9 @@ describe('buildCacheKey', () => {
   it('should return build cache key from the given table and single HASH key value', () => {
     const givenCachePrefix = 'test:';
     const givenTableName = 'test';
-    const givenKey: DynamoDB.DocumentClient.Key = {
+    const givenKey: GetItemCommandInput['Key'] = {
       id: 'testId',
-    };
+    } as never;
     const expected = 'test:test:id-testId';
 
     const actual = buildCacheKey(givenCachePrefix, givenTableName, givenKey);
@@ -25,10 +24,10 @@ describe('buildCacheKey', () => {
   it('should return build cache key from the given table and compose HASH and RANGE key values', () => {
     const givenCachePrefix = 'test:';
     const givenTableName = 'test';
-    const givenKey: DynamoDB.DocumentClient.Key = {
+    const givenKey: GetItemCommandInput['Key'] = {
       id: 'testId',
       timestamp: '2020-01-01 00:00:00',
-    };
+    } as never;
     const expected = 'test:test:id-testId:timestamp-2020-01-01 00:00:00';
 
     const actual = buildCacheKey(givenCachePrefix, givenTableName, givenKey);
@@ -41,7 +40,7 @@ describe('buildItemsCacheMap', () => {
   it('should build the CacheItemKeyMap with single HASH key', () => {
     const givenCachePrefix = 'test:';
     const givenTableName = 'test';
-    const givenKeySchema: DynamoDB.DocumentClient.KeySchema = [
+    const givenKeySchema: CreateTableCommandInput['KeySchema'] = [
       {
         AttributeName: 'id',
         KeyType: 'HASH',
@@ -70,7 +69,7 @@ describe('buildItemsCacheMap', () => {
   it('should build the CacheItemKeyMap with a HASH and RANGE composite key', () => {
     const givenCachePrefix = 'test:';
     const givenTableName = 'test';
-    const givenKeySchema: DynamoDB.DocumentClient.KeySchema = [
+    const givenKeySchema: CreateTableCommandInput['KeySchema'] = [
       {
         AttributeName: 'id',
         KeyType: 'HASH',
@@ -103,7 +102,7 @@ describe('buildItemsCacheMap', () => {
 
 describe('buildKey', () => {
   it('should build a key with only a HASH key', () => {
-    const givenKeySchema: DynamoDB.DocumentClient.KeySchema = [
+    const givenKeySchema: CreateTableCommandInput['KeySchema'] = [
       {
         AttributeName: 'id',
         KeyType: 'HASH',
@@ -114,9 +113,9 @@ describe('buildKey', () => {
       timestamp: '2020-01-01 00:00:00',
       test: 'testing',
     };
-    const expected: DynamoDB.DocumentClient.Key = {
+    const expected: GetItemCommandInput['Key'] = {
       id: 'testId',
-    };
+    } as never;
 
     const actual = buildKey(givenKeySchema, givenItem);
 
@@ -124,7 +123,7 @@ describe('buildKey', () => {
   });
 
   it('should build a key with a HASH and RANGE key', () => {
-    const givenKeySchema: DynamoDB.DocumentClient.KeySchema = [
+    const givenKeySchema: CreateTableCommandInput['KeySchema'] = [
       {
         AttributeName: 'id',
         KeyType: 'HASH',
@@ -139,10 +138,10 @@ describe('buildKey', () => {
       timestamp: '2020-01-01 00:00:00',
       test: 'testing',
     };
-    const expected: DynamoDB.DocumentClient.Key = {
+    const expected: GetItemCommandInput['Key'] = {
       id: 'testId',
       timestamp: '2020-01-01 00:00:00',
-    };
+    } as never;
 
     const actual = buildKey(givenKeySchema, givenItem);
 
