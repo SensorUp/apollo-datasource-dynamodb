@@ -4,6 +4,7 @@ import { Agent } from 'https';
 import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 
 import { DynamoDBClient, DynamoDBClientConfig, CreateTableCommandInput } from '@aws-sdk/client-dynamodb';
+import { TranslateConfig } from '@aws-sdk/lib-dynamodb';
 import {
   DynamoDBDocumentClient,
   PutCommand,
@@ -57,7 +58,8 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     tableName: string,
     tableKeySchema: CreateTableCommandInput['KeySchema'],
     config?: DynamoDBClientConfig,
-    client?: DynamoDBDocumentClient
+    client?: DynamoDBDocumentClient,
+    translateConfig?: TranslateConfig
   ) {
     super();
     this.tableName = tableName;
@@ -67,7 +69,8 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
     } else {
       // @TODO optional captureAWSv3Client
       const dynamoDbClient = new DynamoDBClient({ ...awsClientDefaultOptions, ...config });
-      this.dynamoDbDocClient = DynamoDBDocumentClient.from(dynamoDbClient);
+
+      this.dynamoDbDocClient = DynamoDBDocumentClient.from(dynamoDbClient, translateConfig);
     }
   }
 
