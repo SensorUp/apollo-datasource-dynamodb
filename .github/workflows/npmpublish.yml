@@ -11,30 +11,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-node@v1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 14
-          registry-url: https://npm.pkg.github.com/
+          node-version: 18
+          registry-url: https://sensorup-714588172827.d.codeartifact.us-west-2.amazonaws.com/npm/su-npm/
           scope: '@sensorup'
       - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - run: npm test
 
   publish-gpr:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-node@v1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 14
-          registry-url: https://npm.pkg.github.com/
+          node-version: 18
+          registry-url: https://sensorup-714588172827.d.codeartifact.us-west-2.amazonaws.com/npm/su-npm/
           scope: '@sensorup'
       - run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}

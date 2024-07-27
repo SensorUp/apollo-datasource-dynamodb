@@ -5,6 +5,7 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
+    "co:login": "aws codeartifact login --tool npm --domain sensorup --domain-owner 714588172827 --region us-west-2 --repository su-npm",
     "check-types": "tsc",
     "lint:eslint": "eslint --ext .ts . --ignore-path .gitignore",
     "format:eslint": "eslint --ext .ts . --fix --ignore-path .gitignore",
@@ -17,7 +18,7 @@
     "test:cov": "jest --coverage",
     "prebuild": "rimraf ./lib ./lib-esm",
     "build": "tsc && tsc -m es6 --outDir lib-esm",
-    "prepare": "npm run build",
+    "prepare": "npm run co:login && npm run build",
     "prepublishOnly": "npm test && npm run lint",
     "preversion": "npm run lint",
     "version": "npm run format:prettier && git add -A src",
