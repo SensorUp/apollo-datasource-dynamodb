@@ -15,8 +15,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-          registry-url: https://sensorup-714588172827.d.codeartifact.us-west-2.amazonaws.com/npm/su-npm/
-          scope: '@sensorup'
+      - name: "Setup Repo name"
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+      # Login to AWS using pre-configured OIDC
+      - if: ${{ !startsWith(github.ref, 'refs/heads/dependabot/') }}
+        name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.BUILD_ARTIFACTS_AWS_ACCOUNT_ID }}:role/github-build-${{ env.REPO_NAME }}
+          role-session-name: ${{env.REPO_NAME}}-build
+          aws-region: us-west-2
       - run: npm ci
       - run: npm test
 
