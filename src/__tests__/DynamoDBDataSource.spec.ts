@@ -7,6 +7,7 @@ import {
   DeleteCommand,
   PutCommand,
   GetCommandInput,
+  PutCommandInput,
   ScanCommandInput,
   QueryCommandInput,
   UpdateCommandInput,
@@ -355,6 +356,73 @@ describe('DynamoDBDataSource', () => {
       new DeleteCommand({
         TableName: testHashOnly.tableName,
         Key: { id: 'testId3' },
+      })
+    );
+  });
+
+  it('should put the item with conditionExpression and expressionAttributeNames', async () => {
+    const item4: TestHashOnlyItem = {
+      id: 'testId4',
+      test: 'testing4',
+    };
+    const ttl = 30;
+    const conditionExpression: PutCommandInput['ConditionExpression'] = 'attribute_not_exists(#id)';
+    const expressionAttributeNames: PutCommandInput['ExpressionAttributeNames'] = { '#id': 'id' };
+    const cacheKey = `${CACHE_PREFIX_KEY}${testHashOnly.tableName}:id-testId4`;
+
+    dynamodbCacheSetInCacheMock.mockResolvedValueOnce();
+
+    const actual: TestHashOnlyItem = await testHashOnly.put(item4, ttl, conditionExpression, expressionAttributeNames);
+    const { Item } = await testHashOnly.dynamoDbDocClient.send(
+      new GetCommand({
+        TableName: testHashOnly.tableName,
+        ConsistentRead: true,
+        Key: {
+          id: 'testId4',
+        },
+      })
+    );
+
+    expect(actual).toEqual(item4);
+    expect(Item).toBeDefined();
+    expect(actual).toEqual(Item);
+    expect(dynamodbCacheSetInCacheMock).toBeCalledWith(cacheKey, actual, ttl);
+
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
+        TableName: testHashOnly.tableName,
+        Key: { id: 'testId4' },
+      })
+    );
+  });
+
+  it('should throw an error when conditionExpression fails because record already exists', async () => {
+    const existingItem: TestHashOnlyItem = {
+      id: 'testId5',
+      test: 'existing_item',
+    };
+    const conditionExpression: PutCommandInput['ConditionExpression'] = 'attribute_not_exists(#id)';
+    const expressionAttributeNames: PutCommandInput['ExpressionAttributeNames'] = { '#id': 'id' };
+
+    // First, create the item so it exists
+    await testHashOnly.dynamoDbDocClient.send(
+      new PutCommand({
+        TableName: testHashOnly.tableName,
+        Item: existingItem,
+      })
+    );
+
+    // Now try to put the same item with condition that it shouldn't exist
+    await expect(testHashOnly.put(existingItem, 30, conditionExpression, expressionAttributeNames)).rejects.toThrow();
+
+    // Verify the cache setInCache was not called since the put failed
+    expect(dynamodbCacheSetInCacheMock).not.toBeCalled();
+
+    // Clean up
+    await testHashOnly.dynamoDbDocClient.send(
+      new DeleteCommand({
+        TableName: testHashOnly.tableName,
+        Key: { id: 'testId5' },
       })
     );
   });

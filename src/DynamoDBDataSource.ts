@@ -168,11 +168,17 @@ export abstract class DynamoDBDataSource<ITEM = unknown, TContext = unknown> ext
    * @param item the item to store in the table
    * @param ttl the time-to-live value of how long to persist the item in the cache
    */
-  async put(item: ITEM, ttl?: number, conditionExpression?: PutCommandInput['ConditionExpression']): Promise<ITEM> {
+  async put(
+    item: ITEM,
+    ttl?: number,
+    conditionExpression?: PutCommandInput['ConditionExpression'],
+    expressionAttributeNames?: UpdateCommandInput['ExpressionAttributeNames']
+  ): Promise<ITEM> {
     const putItemInput: PutCommandInput = {
       TableName: this.tableName,
       Item: item,
       ...(conditionExpression ? { ConditionExpression: conditionExpression } : {}),
+      ...(expressionAttributeNames ? { ExpressionAttributeNames: expressionAttributeNames } : {}),
     };
     await this.dynamoDbDocClient.send(new PutCommand(putItemInput));
 
